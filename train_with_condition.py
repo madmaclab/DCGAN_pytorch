@@ -46,6 +46,21 @@ def main(args):
     d_optimizer = torch.optim.Adam(D.parameters(), lr=lr)
     g_optimizer = torch.optim.Adam(G.parameters(), lr=lr)
 
+    # find a image for each idx
+
+    flag = False
+    rep_images = [None] * 10
+    mini_loader = torch.utils.data.DataLoader(dataset=dataset,
+                                              batch_size=1,
+                                              shuffle=True)
+    while not flag:
+        (real_image, condition) = iter(mini_loader).next()
+        if rep_images[condition[0]] is None:
+            rep_images[condition[0]] = loader.denorm(real_image)[0][0].numpy()
+        if all(el is not None for el in rep_images):
+            flag = True
+
+
     for epoch in range(n_epoch):
         for i, (real_image, condition) in enumerate(data_loader):
             onehot = torch.FloatTensor(batch_size, 10).zero_()
@@ -103,12 +118,13 @@ def main(args):
                 summaries.append(tf.Summary.Value(tag='g_loss',
                                                   simple_value=g_loss))
                 sample_images = to_np(loader.denorm(fake_images.view(-1, 28, 28)[:5]))
-                sample_conditions = to_np(onehot.view(-1, 10, 1)[:5])
-                sample_conditions = [np.pad(el, ((0, 18), (0, 0)), 'constant') for el in sample_conditions]
-                sample_conditions = np.concatenate(sample_conditions, axis=0)
+
+                sample_conditions = random_condition[:5].numpy()
+                idx_images = [rep_images[el[0]] for el in sample_conditions]
+                idx_images = np.concatenate(idx_images, axis=1)
 
                 img = np.concatenate(sample_images, axis=1)
-                img = np.concatenate((img, sample_conditions.T), axis=0)
+                img = np.concatenate((img, idx_images), axis=0)
                 s = StringIO()
                 plt.imsave(s, img, format='png', vmin=0, vmax=1, cmap='gray')
                 img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(),
